@@ -1,33 +1,23 @@
-import asyncio, aiosqlite, time, random, sqlite3
+import asyncio, aiosqlite, time, random
 from aiogram import Router, types, F, BaseMiddleware
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from typing import Callable, Dict, Any, Awaitable, Union
+from aiogram.filters.callback_data import CallbackData
 
-help_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="Открыть помощь по боту", url="https://telegra.ph/Pomoshch-po-botu-Sosison-v2-02-14")]
-])
+ADMIN_ID=6199647634
 
 router=Router()
 DB_PATH='main.db'
 
-    class Form(StatesGroup):
-        name = State()
-
-async def get_user_data(user_id):
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
-            'SELECT sausages, inventory FROM users WHERE user_id = ?', (user_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row if row else (0, "")
-
 CHANNEL_ID = -1003740077870
 CHANNEL_URL = "https://t.me/sosison_vkusno2_channel"
 
-
+class Form(StatesGroup):
+    name = State()
 
 
 class CheckSubMiddleware(BaseMiddleware):
@@ -58,6 +48,29 @@ async def is_subscribed(bot, user_id):
         print(f"Ошибка проверки подписки: {e}")
         return False
 
+# База данных
+
+async def init_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY, 
+                name TEXT, 
+                sausages INTEGER DEFAULT 0,
+                last_eat INTEGER DEFAULT 0,
+                inventory TEXT DEFAULT "",
+                banned_until INTEGER DEFAULT 0
+            )
+        ''')
+        await db.commit()
+
+async def get_user_data(user_id):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            'SELECT sausages, inventory FROM users WHERE user_id = ?', (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row if row else (0, "")
 
 async def update_purchase(user_id, new_balance, new_inventory):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -81,6 +94,7 @@ async def set_user_name(user_id, name):
         ''', (user_id, name))
         await db.commit()
 
+
 SHOP_ITEMS = {
     "amulet": {
         "name": "🍀 Браслет удачи",
@@ -98,6 +112,643 @@ SHOP_ITEMS = {
 
 class ShopCallback(CallbackData, prefix="buy"):
     item_id: str
+# Система редкостей
+
+async def get_sausage_luck(user_id):
+    user_data = await get_user_data(user_id)
+    _, inventory = user_data
+
+    inv_list = inventory.split(",") if inventory else []
+
+    options = [
+        ("🌭 Обычный сосисон", 1),
+        ("🧀 Сосисон с сыром", 5),
+        ("👑 Золотой сосисон", 10),
+        ("🤮 Гнилой сосисон", -5),
+        ("💨 Пыльный сосисон", -1)
+    ]
+
+    current_weights = [75, 15, 7, 8, 12]
+
+    for item_id in inv_list:
+        if item_id in SHOP_ITEMS:
+            bonuses = SHOP_ITEMS[item_id]["bonus"]
+            for i in range(len(current_weights)):
+                current_weights[i] = max(1, current_weights[i] + bonuses[i])
+
+    luck = random.choices(options, weights=current_weights, k=1)[0]
+
+    return luck
+
+
+# Кнопки для сосисонов
+help_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Открыть помощь по боту", url="https://telegra.ph/Pomoshch-po-botu-Sosison-v2-02-14")]
+])
+
+    # Обычный сосисон
+
+def get_main_sosison1_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Достать сосисон', callback_data='sosison1')]
+        ]
+    )
+
+    return keyboard
+
+def get_main_sosison2_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Погреть сосисон', callback_data='sosison2')]
+        ]
+    )
+
+    return keyboard
+
+def get_main_sosison3_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Достать из микроволновки', callback_data='sosison3')]
+        ]
+    )
+
+    return keyboard
+
+def get_main_sosison4_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='🔍 Выбирать сосисон', callback_data='sosison4')]
+        ]
+    )
+
+    return keyboard
+
+def get_main_sosison5_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='😋 Съесть сосисон!', callback_data='sosison5')]
+        ]
+    )
+
+    return keyboard
+
+# Сосисон на гриле
+
+def get_gril_sosison1_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Достать сосисон', callback_data='gril1')]
+        ]
+    )
+
+    return keyboard
+
+def get_gril_sosison2_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='🔛 Включить гриль', callback_data='gril2')]
+        ]
+    )
+
+    return keyboard
+
+def get_gril_sosison3_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Положить сосисон', callback_data='gril3')]
+        ]
+    )
+
+    return keyboard
+
+def get_gril_sosison4_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='🔍 Выбирать сосисон', callback_data='gril4')]
+        ]
+    )
+
+    return keyboard
+
+def get_gril_sosison5_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='😋 Съесть сосисон!', callback_data='gril5')]
+        ]
+    )
+
+    return keyboard
+
+# Сосисон в тесте
+
+def get_testo_sosison_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Замесить тесто', callback_data='testo1')]
+        ]
+    )
+
+    return keyboard
+
+def get_testo1_sosison_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Поставить', callback_data='testo2')]
+        ]
+    )
+
+    return keyboard
+
+def get_testo2_sosison_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Завернуть сосисон', callback_data='testo3')]
+        ]
+    )
+
+    return keyboard
+
+def get_testo3_sosison_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='Положить сосисон', callback_data='testo4')]
+        ]
+    )
+
+    return keyboard
+
+def get_testo4_sosison_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='🔍 Выбирать сосисон', callback_data='testo5')]
+        ]
+    )
+
+    return keyboard
+
+def get_testo5_sosison_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text='😋 Съесть сосисон!', callback_data='testo6')]
+        ]
+    )
+
+    return keyboard
+
+# Сосисоны
+    # Обычный сосисон
+
+@router.callback_query(F.data == 'sosison')
+async def process_sosison1(callback: CallbackQuery):
+    await callback.message.answer_photo(photo='https://iimg.su/i/TXgEb3', caption='Откройте холодильник, а затем <b>достаньте оттуда сосисон.</b>',  parse_mode='HTML', reply_markup=get_main_sosison1_keyboard())
+
+@router.callback_query(F.data == 'sosison1')
+async def process_sosison1(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+    await callback.message.answer_photo(photo='https://iimg.su/i/7THvlv', caption='Вы достали сосисон. А теперь <b>положите ваш сосисон в микроволновку,</b> чтобы его погреть.', parse_mode='HTML', reply_markup=get_main_sosison2_keyboard())
+
+@router.callback_query(F.data == 'sosison2')
+async def process_sosison1(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+    await callback.message.answer('Вы греете сосисон<b> (30 сек)...</b>', parse_mode='HTML')
+
+    await asyncio.sleep(25)
+
+    await callback.message.answer_photo(photo='https://iimg.su/i/kK0HRK', caption='Вы погрели сосисон. <b>Теперь достаньте его из микроволновки</b>.', parse_mode='HTML', reply_markup=get_main_sosison3_keyboard())
+
+@router.callback_query(F.data == 'sosison3')
+async def process_sosison3(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+    await callback.message.answer('Вы достали сосисон из микроволновки. <b>Теперь выберите самый сочный сосисон.</b>', parse_mode='HTML', reply_markup=get_main_sosison4_keyboard())
+
+@router.callback_query(F.data == 'sosison4')
+async def process_sosison4(callback: types.CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    user_id = callback.from_user.id
+    username = callback.from_user.full_name
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute('SELECT last_eat FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+
+        name, bonus = await get_sausage_luck(user_id)
+
+        await callback.message.answer_photo(photo='https://www.tumblr.com/desonans1k/810807959549591553?source=share', caption='🔍 Вы выбираете самый сочный сосисон <b>(10 сек)...</b>', parse_mode='HTML')
+        await asyncio.sleep(10)
+
+        await db.execute('''
+            INSERT INTO users (user_id, username, sausages) 
+            VALUES (?, ?, ?) 
+            ON CONFLICT(user_id) DO UPDATE SET 
+                username = excluded.username
+        ''', (user_id, username, bonus))
+        await db.commit()
+
+    await callback.message.answer('Вы выбрали самый сочный сосисон. Скорее же съешьте его!', reply_markup=get_main_sosison5_keyboard())
+
+
+@router.callback_query(F.data == 'sosison5')
+async def process_sosison5(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    username = callback.from_user.full_name
+    current_time = int(time.time())
+    cooldown = 7200
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute('SELECT last_eat FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row and row[0] is not None:
+                try:
+                    last_eat = int(row[0])
+                except ValueError:
+                    last_eat = 0
+
+                time_passed = current_time - last_eat
+                if time_passed < cooldown:
+                    left = cooldown - time_passed
+
+                    hours = left // 3600
+                    minutes = (left % 3600) // 60
+                    seconds = left % 60
+
+                    time_str = ""
+                    if hours > 0:
+                        time_str += f"{hours} ч. "
+                    if minutes > 0 or hours > 0:
+                        time_str += f"{minutes} мин. "
+                    time_str += f"{seconds} сек."
+
+                    return await callback.answer(
+                        f"⏳ Вы уже недавно ели сосисон! Подождите еще {time_str}",
+                        show_alert=True
+                    )
+
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except:
+            pass
+        await callback.answer()
+
+        await db.execute('''
+            INSERT INTO users (user_id, username, last_eat) 
+            VALUES (?, ?, ?) 
+            ON CONFLICT(user_id) DO UPDATE SET last_eat = excluded.last_eat
+        ''', (user_id, username, current_time))
+        await db.commit()
+
+        await callback.message.answer('Вы кушаете сосисон <b>(40 сек)</b>', parse_mode='HTML')
+
+        await asyncio.sleep(37)
+
+        name, bonus = await get_sausage_luck(user_id)
+        await db.execute('''
+            UPDATE users SET 
+            sausages = sausages + ?, 
+            username = ? 
+            WHERE user_id = ?
+        ''', (bonus, username, user_id))
+        await db.commit()
+
+        async with db.execute('SELECT sausages FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            res = await cursor.fetchone()
+            total = res[0]
+
+        if bonus < 0:
+            status_text = f'🤢 К сожалению вам попался {name}\nВы потеряли {abs(bonus)} шт.'
+        if bonus > 0:
+            status_text = f'🌭 Вы съели: {name}\nВам начислено: {bonus} шт.'
+        if bonus > 1:
+            status_text = f'🍀 Вот это удача! Вы съели: {name}\nВам начислено: {bonus} шт.'
+
+        full_message = (
+            f"{status_text}\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"📊 Всего съедено: {total} шт."
+        )
+
+        await callback.message.answer_photo(photo='https://iimg.su/i/SNFc1S', caption = full_message)
+
+@router.callback_query(F.data == 'gril')
+async def process_gril(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer_photo(photo='https://iimg.su/i/TXgEb3', caption='Откройте холодильник, а затем <b>достаньте оттуда сосисон.</b>',  parse_mode='HTML', reply_markup=get_gril_sosison1_keyboard())
+
+
+@router.callback_query(F.data == 'gril1')
+async def process_gril1(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+    await callback.message.answer('Вы достали сосисон. <b>Теперь включите гриль и нагрейте его до нужной температуры.</b>',  parse_mode='HTML', reply_markup=get_gril_sosison2_keyboard())
+
+@router.callback_query(F.data == 'gril2')
+async def process_gril2(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    await callback.message.answer('Нагреваем гриль <b>(10 сек)...</b>', parse_mode='HTML')
+    await asyncio.sleep(10)
+    await callback.message.answer('Теперь положите сосисон на гриль, чтобы его пожарить.', reply_markup=get_gril_sosison3_keyboard())
+
+
+@router.callback_query(F.data == 'gril3')
+async def process_gril2(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    await callback.message.answer('Вы жарите сосисон <b>(30 сек)...</b>',  parse_mode='HTML')
+    await asyncio.sleep(26)
+
+    await callback.message.answer('Вы пожарили сосисон. Теперь выберите самый сочный сосисон.', reply_markup=get_gril_sosison4_keyboard())
+
+@router.callback_query(F.data == 'gril4')
+async def process_gril4(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    user_id = callback.from_user.id
+    username = callback.from_user.full_name
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute('SELECT last_eat FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+
+        name, bonus = await get_sausage_luck(user_id)
+
+        await db.execute('''
+            INSERT INTO users (user_id, username, sausages) 
+            VALUES (?, ?, ?) 
+            ON CONFLICT(user_id) DO UPDATE SET 
+                username = excluded.username
+        ''', (user_id, username, bonus))
+        await db.commit()
+
+        await callback.message.answer_photo(photo='https://www.tumblr.com/desonans1k/810807959549591553?source=share', caption='🔍 Вы выбираете самый сочный сосисон <b>(10 сек)...</b>', parse_mode='HTML')
+        await asyncio.sleep(10)
+
+    await callback.message.answer('Вы выбрали самый сочный сосисон. Скорее же съешьте его!', reply_markup=get_gril_sosison5_keyboard())
+
+@router.callback_query(F.data == 'gril5')
+async def process_gril5(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    username = callback.from_user.full_name
+    current_time = int(time.time())
+    cooldown = 7200
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute('SELECT last_eat FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                last_eat = row[0] if row[0] else 0
+                time_passed = current_time - last_eat
+                if time_passed < cooldown:
+                    left = cooldown - time_passed
+
+                    hours = left // 3600
+                    minutes = (left % 3600) // 60
+                    seconds = left % 60
+
+                    time_str = ""
+                    if hours > 0:
+                        time_str += f"{hours} ч. "
+                    if minutes > 0 or hours > 0:
+                        time_str += f"{minutes} мин. "
+                    time_str += f"{seconds} сек."
+
+                    return await callback.answer(
+                        f"⏳ Вы уже недавно ели сосисон! Подождите еще {time_str}",
+                        show_alert=True
+                    )
+
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except:
+            pass
+        await callback.answer()
+
+        await db.execute('''
+            INSERT INTO users (user_id, username, last_eat) 
+            VALUES (?, ?, ?) 
+            ON CONFLICT(user_id) DO UPDATE SET last_eat = excluded.last_eat
+        ''', (user_id, username, current_time))
+        await db.commit()
+
+        await callback.message.answer('Вы кушаете сосисон <b>(40 сек)...</b>', parse_mode='HTML')
+
+        await asyncio.sleep(37)
+
+        name, bonus = await get_sausage_luck(user_id)
+        await db.execute('''
+            UPDATE users SET 
+            sausages = sausages + ?, 
+            username = ? 
+            WHERE user_id = ?
+        ''', (bonus, username, user_id))
+        await db.commit()
+
+        async with db.execute('SELECT sausages FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            res = await cursor.fetchone()
+            total = res[0]
+
+        if bonus < 0:
+            status_text = f'🤢 К сожалению вам попался {name}\nВы потеряли {abs(bonus)} шт.'
+        if bonus > 0:
+            status_text = f'🌭 Вы съели: {name}\nВам начислено: {bonus} шт.'
+        if bonus > 1:
+            status_text = f'🍀 Вот это удача! Вы съели: {name}\nВам начислено: {bonus} шт.'
+
+        full_message = (
+            f"{status_text}\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"📊 Всего съедено: {total} шт."
+        )
+
+        await callback.message.answer_photo(photo='https://iimg.su/i/SNFc1S', caption = full_message)
+
+
+@router.callback_query(F.data == 'testo')
+async def process_testo(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer_photo(photo='https://ibb.co/d0qsD0GY', caption='Сначала <b>замесите тесто</b>', parse_mode='HTML', reply_markup=get_testo_sosison_keyboard())
+
+
+@router.callback_query(F.data == 'testo1')
+async def process_testo1(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    await callback.message.answer_photo(photo='https://ibb.co/htW7jsX', caption='Вы замешиваете тесто <b>(10 сек)..</b>', parse_mode='HTML')
+    await asyncio.sleep(9)
+    await callback.message.answer_photo(photo='https://ibb.co/N6NnRvM1', caption='Вы замесили тесто. Теперь <b>поставьте ваше тесто в тёплое место</b>, чтобы оно поднялось', parse_mode='HTML', reply_markup=get_testo1_sosison_keyboard())
+
+@router.callback_query(F.data == 'testo2')
+async def process_testo2(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    await callback.message.answer('Ваше тесто поднимается <b>(25 сек)..</b>', parse_mode='HTML')
+    await asyncio.sleep(21)
+    await callback.message.answer_photo(photo='https://ibb.co/LhC39J3g', caption='Тесто поднялось. Теперь <b>завернить сосисон в тесто</b>', parse_mode='HTML', reply_markup=get_testo2_sosison_keyboard())
+
+@router.callback_query(F.data == 'testo3')
+async def process_testo3(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    await callback.message.answer_photo(photo='https://ibb.co/shhMFH1', caption='Вы завернули сосисон. <b>Теперь положите его в духовку.</b>', parse_mode='HTML', reply_markup=get_testo3_sosison_keyboard())
+
+@router.callback_query(F.data == 'testo4')
+async def process_testo4(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    await callback.message.answer('🕒 Ваш сосисон запекается в духовке <b>(40 сек)..</b>', parse_mode='HTML')
+    await asyncio.sleep(35)
+    await callback.message.answer('Ваш сосисон запекся. Теперь выберите самый сочный сосисон.', parse_mode='HTML', reply_markup=get_testo4_sosison_keyboard())
+
+@router.callback_query(F.data == 'testo5')
+async def process_testo5(callback: CallbackQuery):
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer()
+
+    user_id = callback.from_user.id
+    username = callback.from_user.full_name
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute('SELECT last_eat FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+
+        name, bonus = await get_sausage_luck(user_id)
+
+        await db.execute('''
+            INSERT INTO users (user_id, username, sausages) 
+            VALUES (?, ?, ?) 
+            ON CONFLICT(user_id) DO UPDATE SET 
+                username = excluded.username
+        ''', (user_id, username, bonus))
+        await db.commit()
+
+        await callback.message.answer_photo(photo='https://www.tumblr.com/desonans1k/810807959549591553?source=share', caption='🔍 Вы выбираете самый сочный сосисон <b>(10 сек)...</b>', parse_mode='HTML')
+        await asyncio.sleep(10)
+
+    await callback.message.answer('Вы выбрали самый сочный сосисон. Скорее же съешьте его!', reply_markup=get_testo5_sosison_keyboard())
+
+
+@router.callback_query(F.data == 'testo6')
+async def process_testo6(callback: CallbackQuery):
+
+    user_id = callback.from_user.id
+    username = callback.from_user.full_name
+    current_time = int(time.time())
+    cooldown = 7200
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute('SELECT last_eat FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                last_eat = row[0] if row[0] else 0
+                time_passed = current_time - last_eat
+
+                if time_passed < cooldown:
+                    left = cooldown - time_passed
+                    hours = left // 3600
+                    minutes = (left % 3600) // 60
+                    seconds = left % 60
+
+                    time_str = f"{hours} ч. {minutes} мин. {seconds} сек."
+
+                    return await callback.answer(f"⏳ Вы уже недавно ели сосисон! Подождите еще {time_str}",
+                                                 show_alert=True)
+
+        await callback.answer()
+
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except:
+            pass
+        await callback.answer()
+
+        await db.execute('''
+            INSERT INTO users (user_id, name, last_eat) 
+            VALUES (?, ?, ?) 
+            ON CONFLICT(user_id) DO UPDATE SET last_eat = excluded.last_eat
+        ''', (user_id, username, current_time))
+        await db.commit()
+
+        await callback.message.answer('Вы кушаете сосисон <b>(40 сек)...</b>', parse_mode='HTML')
+
+        await asyncio.sleep(37)
+
+        name, bonus = await get_sausage_luck(user_id)
+        await db.execute('''
+            UPDATE users SET 
+            sausages = sausages + ?, 
+            username = ? 
+            WHERE user_id = ?
+        ''', (bonus, username, user_id))
+        await db.commit()
+
+        async with db.execute('SELECT sausages FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            res = await cursor.fetchone()
+            total = res[0]
+
+        if bonus < 0:
+            status_text = f'🤢 К сожалению вам попался {name}\nВы потеряли {abs(bonus)} шт.'
+        if bonus > 0:
+            status_text = f'🌭 Вы съели: {name}\nВам начислено: {bonus} шт.'
+        if bonus > 1:
+            status_text = f'🍀 Вот это удача! Вы съели: {name}\nВам начислено: {bonus} шт.'
+
+        full_message = (
+            f"{status_text}\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"📊 Всего съедено: {total} шт."
+        )
+
+        await callback.message.answer_photo(photo='https://iimg.su/i/SNFc1S', caption = full_message)
+
+# Обработчики команд
 
 async def show_main_menu(message: types.Message, name: str):
     builder = InlineKeyboardBuilder()
@@ -117,8 +768,6 @@ async def show_main_menu(message: types.Message, name: str):
 @router.message(Command('start'))
 async def start(message: Message, state: FSMContext):
     user = message.from_user
-    username = f"@{user.username}" if user.username else "Без юзернейма"
-    print(f"🚀 [START] Юзер: {username} | ID: {user.id} | Имя в ТГ: {user.full_name}")
     # ---------------------
 
     await state.clear()
